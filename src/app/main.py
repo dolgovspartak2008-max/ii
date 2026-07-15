@@ -1,17 +1,78 @@
 """ASGI application entry point."""
 
+from contextlib import asynccontextmanager
+
+from aiogram import Bot, Dispatcher
 from fastapi import FastAPI
 
-from app.core.config import get_settings
+from app.application.access.use_cases import (
+    ApproveAccessApplication,
+    RejectAccessApplication,
+    SubmitAccessApplication,
+)
+from app.core.config import Settings, get_settings
 from app.core.logging import configure_logging
+from app.infrastructure.persistence.repositories.access import (
+    PostgresAccessApplicationRepository,
+)
+from app.infrastructure.persistence.repositories.outbox import (
+    PostgresAccessOutboxRepository,
+)
+from app.infrastructure.persistence.session import (
+    create_database_engine,
+    create_session_factory,
+)
+from app.infrastructure.telegram.access_bot.notifier import AiogramAccessNotifier
+from app.infrastructure.telegram.access_bot.router import create_access_router
+from app.presentation.webhooks.access import create_access_webhook_router
 
 
-def create_app() -> FastAPI:
+def create_app(settings: Settings | None = None) -> FastAPI:
     """Create and configure the FastAPI application."""
-    settings = get_settings()
+    settings = settings or get_settings()
     configure_logging(settings.log_level)
 
-    app = FastAPI(title="Telegram AI SaaS", docs_url=None, redoc_url=None)
+    engine = create_database_engine(settings.database_url)
+    session_factory = create_session_factory(engine)
+    repository = PostgresAccessApplicationRepository(session_factory)
+    outbox = PostgresAccessOutboxRepository(session_factory)
+    bot = Bot(token=settings.telegram_access_bot_token.get_secret_value())
+    notifier = AiogramAccessNotifier(bot, settings.admin_telegram_id)
+    submit = SubmitAccessApplication(repository, notifier, outbox)
+    approve = ApproveAccessApplication(
+        repository,
+        notifier,
+        settings.admin_telegram_id,
+        outbox,
+    )
+    reject = RejectAccessApplication(
+        repository,
+        notifier,
+        settings.admin_telegram_id,
+        outbox,
+    )
+    dispatcher = Dispatcher()
+    dispatcher.include_router(create_access_router(submit, approve, reject))
+
+    @asynccontextmanager
+    async def lifespan(_: FastAPI):
+        yield
+        await bot.session.close()
+        await engine.dispose()
+
+    app = FastAPI(
+        title="Telegram AI SaaS",
+        docs_url=None,
+        redoc_url=None,
+        lifespan=lifespan,
+    )
+    app.include_router(
+        create_access_webhook_router(
+            dispatcher,
+            bot,
+            settings.telegram_access_webhook_secret.get_secret_value(),
+        )
+    )
 
     @app.get("/healthz", include_in_schema=False)
     async def healthz() -> dict[str, str]:
