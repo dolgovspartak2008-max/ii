@@ -1,8 +1,10 @@
 """Official Telegram Business event handlers."""
 
-from aiogram import Router
+from aiogram import Bot, Router
 from aiogram.types import BusinessConnection, Message
 
+from app.application.ai.use_cases import GenerateBusinessReply
+from app.domain.chats.entities import BusinessConnection as StoredBusinessConnection
 from app.infrastructure.persistence.repositories.chats import (
     PostgresBusinessChatRepository,
 )
@@ -14,9 +16,30 @@ def is_owner_message(owner_telegram_id: int, sender_telegram_id: int | None) -> 
     return sender_telegram_id == owner_telegram_id
 
 
+async def deliver_business_reply(
+    message: Message,
+    connection: StoredBusinessConnection,
+    replies: GenerateBusinessReply,
+    bot: Bot,
+) -> None:
+    """Generate and send one text reply through the originating connection."""
+    if message.text is None or message.business_connection_id is None:
+        return
+    reply = await replies.execute(connection.tenant_id, message.chat.id, message.text)
+    if reply is None:
+        return
+    await bot.send_message(
+        message.chat.id,
+        reply,
+        business_connection_id=message.business_connection_id,
+    )
+
+
 def create_business_events_router(
     tenants: PostgresTenantRepository,
     chats: PostgresBusinessChatRepository,
+    replies: GenerateBusinessReply,
+    bot: Bot,
 ) -> Router:
     """Persist connections and stop AI when the owner takes a chat over."""
     router = Router(name="business-chat-events")
@@ -44,5 +67,7 @@ def create_business_events_router(
         await chats.open_customer_chat(connection.tenant_id, message.chat.id)
         if is_owner_message(connection.owner_telegram_id, sender_id):
             await chats.mark_human_handoff(connection.tenant_id, message.chat.id)
+            return
+        await deliver_business_reply(message, connection, replies, bot)
 
     return router

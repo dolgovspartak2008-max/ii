@@ -2,7 +2,7 @@
 
 from uuid import UUID
 
-from app.application.ai.ports import AIResponder
+from app.application.ai.ports import AIProviderError, AIResponder
 from app.domain.chats.entities import ChatState
 from app.infrastructure.persistence.repositories.chats import (
     PostgresBusinessChatRepository,
@@ -32,9 +32,12 @@ class GenerateBusinessReply:
         profile = await self._tenants.get_business_profile(tenant_id)
         if profile is None:
             return None
-        answer = (await self._responder.generate(
-            tenant_id, profile.name, profile.description, customer_text
-        )).strip()
+        try:
+            answer = (await self._responder.generate(
+                tenant_id, profile.name, profile.description, customer_text
+            )).strip()
+        except AIProviderError:
+            return None
         if not answer:
             return None
         return answer if answer.startswith("ИИ:") else f"ИИ: {answer}"

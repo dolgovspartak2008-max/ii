@@ -4,6 +4,10 @@ from typing import Protocol
 from uuid import UUID
 
 
+class AIProviderError(RuntimeError):
+    """The configured AI provider could not generate a reply."""
+
+
 class AIResponder(Protocol):
     """Generate one customer-facing answer from isolated tenant context."""
 

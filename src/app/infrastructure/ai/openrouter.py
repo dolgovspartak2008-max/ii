@@ -5,8 +5,10 @@ from uuid import UUID
 
 import httpx
 
+from app.application.ai.ports import AIProviderError
 
-class LLMProviderError(RuntimeError):
+
+class LLMProviderError(AIProviderError):
     """Raised when the configured AI provider cannot produce an answer."""
 
 

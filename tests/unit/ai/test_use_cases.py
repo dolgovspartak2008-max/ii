@@ -2,6 +2,7 @@ from uuid import uuid4
 
 import pytest
 
+from app.application.ai.ports import AIProviderError
 from app.application.ai.use_cases import GenerateBusinessReply
 from app.domain.chats.entities import ChatState, CustomerChat
 from app.domain.tenants.entities import BusinessProfile
@@ -37,6 +38,13 @@ class FakeResponder:
             (tenant_id, business_name, business_description, customer_text)
         )
         return self.answer
+
+
+class UnavailableResponder:
+    async def generate(
+        self, tenant_id, business_name, business_description, customer_text
+    ):
+        raise AIProviderError("Provider unavailable")
 
 
 @pytest.mark.asyncio
@@ -85,3 +93,15 @@ async def test_missing_profile_does_not_generate_reply() -> None:
 
     assert await service.execute(tenant_id, 100, "Здравствуйте") is None
     assert responder.requests == []
+
+
+@pytest.mark.asyncio
+async def test_provider_failure_does_not_generate_customer_reply() -> None:
+    tenant_id = uuid4()
+    service = GenerateBusinessReply(
+        FakeTenants(BusinessProfile.create("Кофейня", "Кофе с собой")),
+        FakeChats(CustomerChat(tenant_id, 100, ChatState.ACTIVE)),
+        UnavailableResponder(),
+    )
+
+    assert await service.execute(tenant_id, 100, "Есть капучино?") is None

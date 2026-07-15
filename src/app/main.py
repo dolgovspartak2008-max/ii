@@ -10,12 +10,14 @@ from app.application.access.use_cases import (
     RejectAccessApplication,
     SubmitAccessApplication,
 )
+from app.application.ai.use_cases import GenerateBusinessReply
 from app.application.tenants.use_cases import (
     OnboardApprovedOwner,
     UpdateBusinessProfile,
 )
 from app.core.config import Settings, get_settings
 from app.core.logging import configure_logging
+from app.infrastructure.ai.openrouter import OpenRouterAIResponder
 from app.infrastructure.persistence.repositories.access import (
     PostgresAccessApplicationRepository,
 )
@@ -70,6 +72,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     access_dispatcher.include_router(create_access_router(submit, approve, reject))
 
     business_bot = Bot(token=settings.telegram_business_bot_token.get_secret_value())
+    responder = OpenRouterAIResponder(
+        settings.openrouter_api_key.get_secret_value(),
+        settings.openrouter_model,
+    )
+    replies = GenerateBusinessReply(tenants, chats, responder)
     business_dispatcher = Dispatcher()
     business_dispatcher.include_router(
         create_business_router(
@@ -77,7 +84,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             UpdateBusinessProfile(tenants),
         )
     )
-    business_dispatcher.include_router(create_business_events_router(tenants, chats))
+    business_dispatcher.include_router(
+        create_business_events_router(tenants, chats, replies, business_bot)
+    )
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):
