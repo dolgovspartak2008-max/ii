@@ -19,6 +19,9 @@ from app.core.logging import configure_logging
 from app.infrastructure.persistence.repositories.access import (
     PostgresAccessApplicationRepository,
 )
+from app.infrastructure.persistence.repositories.chats import (
+    PostgresBusinessChatRepository,
+)
 from app.infrastructure.persistence.repositories.outbox import (
     PostgresAccessOutboxRepository,
 )
@@ -29,6 +32,9 @@ from app.infrastructure.persistence.session import (
 )
 from app.infrastructure.telegram.access_bot.notifier import AiogramAccessNotifier
 from app.infrastructure.telegram.access_bot.router import create_access_router
+from app.infrastructure.telegram.business_bot.events import (
+    create_business_events_router,
+)
 from app.infrastructure.telegram.business_bot.router import create_business_router
 from app.presentation.webhooks.access import create_access_webhook_router
 from app.presentation.webhooks.business import create_business_webhook_router
@@ -43,6 +49,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     session_factory = create_session_factory(engine)
     repository = PostgresAccessApplicationRepository(session_factory)
     tenants = PostgresTenantRepository(session_factory)
+    chats = PostgresBusinessChatRepository(session_factory)
     outbox = PostgresAccessOutboxRepository(session_factory)
     access_bot = Bot(token=settings.telegram_access_bot_token.get_secret_value())
     notifier = AiogramAccessNotifier(access_bot, settings.admin_telegram_id)
@@ -70,6 +77,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             UpdateBusinessProfile(tenants),
         )
     )
+    business_dispatcher.include_router(create_business_events_router(tenants, chats))
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):
