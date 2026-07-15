@@ -55,4 +55,4 @@
 - [x] Write failing handler tests proving text customer messages are delivered with the connection ID and owner/non-text messages are not generated.
 - [x] Inject the service and bot into the event router, then compose OpenRouter in the ASGI application.
 - [x] Run focused tests, full `pytest -q --disable-warnings`, and `ruff check .`.
-- [ ] Commit, merge the isolated branch, push `main`, and verify the configured provider without printing its key.
+- [x] Commit, merge the isolated branch, push `main`, and verify the configured provider without printing its key.
