@@ -6,6 +6,7 @@ from app.core.config import Settings
 
 def test_settings_have_safe_defaults() -> None:
     settings = Settings(
+        public_base_url="https://example.amvera.tech",
         telegram_business_bot_token="business-token",
         telegram_access_bot_token="access-token",
         admin_telegram_id=42,
@@ -23,6 +24,7 @@ def test_settings_have_safe_defaults() -> None:
 def test_settings_reject_empty_bot_token() -> None:
     with pytest.raises(ValidationError):
         Settings(
+        public_base_url="https://example.amvera.tech",
         telegram_business_bot_token="",
         telegram_access_bot_token="access-token",
         admin_telegram_id=42,
@@ -35,6 +37,7 @@ def test_settings_reject_empty_bot_token() -> None:
 
 def test_settings_require_admin_and_webhook_secret() -> None:
     settings = Settings(
+        public_base_url="https://example.amvera.tech",
         telegram_business_bot_token="business-token",
         telegram_access_bot_token="access-token",
         admin_telegram_id=42,
@@ -53,6 +56,7 @@ def test_settings_require_admin_and_webhook_secret() -> None:
 
 def test_settings_require_separate_business_webhook_secret() -> None:
     settings = Settings(
+        public_base_url="https://example.amvera.tech",
         telegram_business_bot_token="business-token",
         telegram_access_bot_token="access-token",
         admin_telegram_id=42,

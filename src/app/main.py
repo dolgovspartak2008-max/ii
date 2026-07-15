@@ -38,6 +38,7 @@ from app.infrastructure.telegram.business_bot.events import (
     create_business_events_router,
 )
 from app.infrastructure.telegram.business_bot.router import create_business_router
+from app.infrastructure.telegram.webhooks import configure_telegram_webhooks
 from app.presentation.webhooks.access import create_access_webhook_router
 from app.presentation.webhooks.business import create_business_webhook_router
 
@@ -90,6 +91,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):
+        await configure_telegram_webhooks(settings, access_bot, business_bot)
         yield
         await access_bot.session.close()
         await business_bot.session.close()

@@ -2,7 +2,7 @@
 
 from functools import lru_cache
 
-from pydantic import Field, SecretStr
+from pydantic import AnyHttpUrl, Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -18,6 +18,7 @@ class Settings(BaseSettings):
 
     app_env: str = "development"
     log_level: str = "INFO"
+    public_base_url: AnyHttpUrl
     database_url: str = "postgresql+asyncpg://app:app@postgres:5432/app"
     redis_url: str = "redis://redis:6379/0"
     telegram_business_bot_token: SecretStr = Field(min_length=1)

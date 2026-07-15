@@ -20,6 +20,7 @@ def test_health_endpoint_returns_no_operational_details(monkeypatch) -> None:
     )
     monkeypatch.setenv("OPENROUTER_API_KEY", "openrouter-key")
     monkeypatch.setenv("OPENROUTER_MODEL", "openrouter/auto")
+    monkeypatch.setenv("PUBLIC_BASE_URL", "https://example.amvera.tech")
     get_settings.cache_clear()
 
     from app.main import create_app
@@ -52,11 +53,21 @@ def test_main_app_declares_separate_business_webhook(monkeypatch) -> None:
     )
     monkeypatch.setenv("OPENROUTER_API_KEY", "openrouter-key")
     monkeypatch.setenv("OPENROUTER_MODEL", "openrouter/auto")
+    monkeypatch.setenv("PUBLIC_BASE_URL", "https://example.amvera.tech")
     get_settings.cache_clear()
 
-    from app.main import create_app
+    import app.main as main_module
 
-    with TestClient(create_app()) as client:
+    async def disable_webhook_registration(*args) -> None:
+        return None
+
+    monkeypatch.setattr(
+        main_module,
+        "configure_telegram_webhooks",
+        disable_webhook_registration,
+    )
+
+    with TestClient(main_module.create_app()) as client:
         response = client.post(
             "/webhooks/business/abcdef0123456789abcdef0123456789",
             json={"update_id": 1},
