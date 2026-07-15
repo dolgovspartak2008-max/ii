@@ -67,3 +67,23 @@ def test_review_is_atomic_and_idempotent() -> None:
         await engine.dispose()
 
     asyncio.run(scenario())
+
+
+def test_application_can_be_loaded_by_owner_telegram_id() -> None:
+    async def scenario() -> None:
+        engine = create_async_engine(
+            "postgresql+asyncpg://app:app@localhost:5432/app",
+        )
+        repository = PostgresAccessApplicationRepository(
+            async_sessionmaker(engine, expire_on_commit=False)
+        )
+        telegram_id = secrets.randbelow(10**12) + 10**12
+        submitted = await repository.create_pending(telegram_id=telegram_id)
+
+        loaded = await repository.get_by_telegram_id(telegram_id)
+
+        assert loaded is not None
+        assert loaded.id == submitted.application.id
+        await engine.dispose()
+
+    asyncio.run(scenario())

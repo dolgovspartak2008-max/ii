@@ -10,6 +10,10 @@ from app.application.access.use_cases import (
     RejectAccessApplication,
     SubmitAccessApplication,
 )
+from app.application.tenants.use_cases import (
+    OnboardApprovedOwner,
+    UpdateBusinessProfile,
+)
 from app.core.config import Settings, get_settings
 from app.core.logging import configure_logging
 from app.infrastructure.persistence.repositories.access import (
@@ -18,13 +22,16 @@ from app.infrastructure.persistence.repositories.access import (
 from app.infrastructure.persistence.repositories.outbox import (
     PostgresAccessOutboxRepository,
 )
+from app.infrastructure.persistence.repositories.tenants import PostgresTenantRepository
 from app.infrastructure.persistence.session import (
     create_database_engine,
     create_session_factory,
 )
 from app.infrastructure.telegram.access_bot.notifier import AiogramAccessNotifier
 from app.infrastructure.telegram.access_bot.router import create_access_router
+from app.infrastructure.telegram.business_bot.router import create_business_router
 from app.presentation.webhooks.access import create_access_webhook_router
+from app.presentation.webhooks.business import create_business_webhook_router
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -35,9 +42,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     engine = create_database_engine(settings.database_url)
     session_factory = create_session_factory(engine)
     repository = PostgresAccessApplicationRepository(session_factory)
+    tenants = PostgresTenantRepository(session_factory)
     outbox = PostgresAccessOutboxRepository(session_factory)
-    bot = Bot(token=settings.telegram_access_bot_token.get_secret_value())
-    notifier = AiogramAccessNotifier(bot, settings.admin_telegram_id)
+    access_bot = Bot(token=settings.telegram_access_bot_token.get_secret_value())
+    notifier = AiogramAccessNotifier(access_bot, settings.admin_telegram_id)
     submit = SubmitAccessApplication(repository, notifier, outbox)
     approve = ApproveAccessApplication(
         repository,
@@ -51,13 +59,23 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         settings.admin_telegram_id,
         outbox,
     )
-    dispatcher = Dispatcher()
-    dispatcher.include_router(create_access_router(submit, approve, reject))
+    access_dispatcher = Dispatcher()
+    access_dispatcher.include_router(create_access_router(submit, approve, reject))
+
+    business_bot = Bot(token=settings.telegram_business_bot_token.get_secret_value())
+    business_dispatcher = Dispatcher()
+    business_dispatcher.include_router(
+        create_business_router(
+            OnboardApprovedOwner(repository, tenants),
+            UpdateBusinessProfile(tenants),
+        )
+    )
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):
         yield
-        await bot.session.close()
+        await access_bot.session.close()
+        await business_bot.session.close()
         await engine.dispose()
 
     app = FastAPI(
@@ -68,9 +86,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.include_router(
         create_access_webhook_router(
-            dispatcher,
-            bot,
+            access_dispatcher,
+            access_bot,
             settings.telegram_access_webhook_secret.get_secret_value(),
+        )
+    )
+    app.include_router(
+        create_business_webhook_router(
+            business_dispatcher,
+            business_bot,
+            settings.telegram_business_webhook_secret.get_secret_value(),
         )
     )
 

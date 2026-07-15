@@ -10,6 +10,7 @@ def test_settings_have_safe_defaults() -> None:
         telegram_access_bot_token="access-token",
         admin_telegram_id=42,
         telegram_access_webhook_secret="0123456789abcdef0123456789abcdef",
+        telegram_business_webhook_secret="abcdef0123456789abcdef0123456789",
     )
 
     assert settings.app_env == "development"
@@ -22,6 +23,9 @@ def test_settings_reject_empty_bot_token() -> None:
         Settings(
             telegram_business_bot_token="",
             telegram_access_bot_token="access-token",
+            admin_telegram_id=42,
+            telegram_access_webhook_secret="0123456789abcdef0123456789abcdef",
+            telegram_business_webhook_secret="abcdef0123456789abcdef0123456789",
         )
 
 
@@ -31,10 +35,25 @@ def test_settings_require_admin_and_webhook_secret() -> None:
         telegram_access_bot_token="access-token",
         admin_telegram_id=42,
         telegram_access_webhook_secret="0123456789abcdef0123456789abcdef",
+        telegram_business_webhook_secret="abcdef0123456789abcdef0123456789",
     )
 
     assert settings.admin_telegram_id == 42
     assert (
         settings.telegram_access_webhook_secret.get_secret_value()
         == "0123456789abcdef0123456789abcdef"
+    )
+
+
+def test_settings_require_separate_business_webhook_secret() -> None:
+    settings = Settings(
+        telegram_business_bot_token="business-token",
+        telegram_access_bot_token="access-token",
+        admin_telegram_id=42,
+        telegram_access_webhook_secret="0123456789abcdef0123456789abcdef",
+        telegram_business_webhook_secret="abcdef0123456789abcdef0123456789",
+    )
+
+    assert settings.telegram_business_webhook_secret.get_secret_value().startswith(
+        "abcdef"
     )

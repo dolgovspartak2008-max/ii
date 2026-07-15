@@ -83,6 +83,16 @@ class PostgresAccessApplicationRepository:
             is_changed=is_changed,
         )
 
+    async def get_by_telegram_id(self, telegram_id: int) -> AccessApplication | None:
+        """Load one access application for the prospective tenant owner."""
+        async with self._session_factory() as session:
+            model = await session.scalar(
+                select(AccessApplicationModel).where(
+                    AccessApplicationModel.telegram_id == telegram_id
+                )
+            )
+        return self._to_domain(model) if model is not None else None
+
     @staticmethod
     def _to_domain(model: AccessApplicationModel) -> AccessApplication:
         return AccessApplication(
