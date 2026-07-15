@@ -6,6 +6,10 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
 from app.infrastructure.persistence.models.access import Base
+from app.infrastructure.persistence.models.tenants import (  # noqa: F401
+    BusinessProfileModel,
+    TenantModel,
+)
 
 config = context.config
 if config.config_file_name is not None:
