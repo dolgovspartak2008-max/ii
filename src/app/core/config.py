@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     redis_url: str = "redis://redis:6379/0"
     telegram_business_bot_token: SecretStr = Field(min_length=1)
     telegram_access_bot_token: SecretStr = Field(min_length=1)
+    admin_telegram_id: int = Field(gt=0)
+    telegram_access_webhook_secret: SecretStr = Field(min_length=32)
 
 
 @lru_cache
