@@ -18,6 +18,8 @@ def test_health_endpoint_returns_no_operational_details(monkeypatch) -> None:
         "TELEGRAM_BUSINESS_WEBHOOK_SECRET",
         "abcdef0123456789abcdef0123456789",
     )
+    monkeypatch.setenv("OPENROUTER_API_KEY", "openrouter-key")
+    monkeypatch.setenv("OPENROUTER_MODEL", "openrouter/auto")
     get_settings.cache_clear()
 
     from app.main import create_app
@@ -48,6 +50,8 @@ def test_main_app_declares_separate_business_webhook(monkeypatch) -> None:
         "TELEGRAM_BUSINESS_WEBHOOK_SECRET",
         "abcdef0123456789abcdef0123456789",
     )
+    monkeypatch.setenv("OPENROUTER_API_KEY", "openrouter-key")
+    monkeypatch.setenv("OPENROUTER_MODEL", "openrouter/auto")
     get_settings.cache_clear()
 
     from app.main import create_app

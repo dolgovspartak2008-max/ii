@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     admin_telegram_id: int = Field(gt=0)
     telegram_access_webhook_secret: SecretStr = Field(min_length=32)
     telegram_business_webhook_secret: SecretStr = Field(min_length=32)
+    openrouter_api_key: SecretStr = Field(min_length=1)
+    openrouter_model: str = Field(min_length=1)
 
 
 @lru_cache

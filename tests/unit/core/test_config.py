@@ -11,6 +11,8 @@ def test_settings_have_safe_defaults() -> None:
         admin_telegram_id=42,
         telegram_access_webhook_secret="0123456789abcdef0123456789abcdef",
         telegram_business_webhook_secret="abcdef0123456789abcdef0123456789",
+        openrouter_api_key="openrouter-key",
+        openrouter_model="openrouter/auto",
     )
 
     assert settings.app_env == "development"
@@ -21,11 +23,13 @@ def test_settings_have_safe_defaults() -> None:
 def test_settings_reject_empty_bot_token() -> None:
     with pytest.raises(ValidationError):
         Settings(
-            telegram_business_bot_token="",
-            telegram_access_bot_token="access-token",
-            admin_telegram_id=42,
-            telegram_access_webhook_secret="0123456789abcdef0123456789abcdef",
-            telegram_business_webhook_secret="abcdef0123456789abcdef0123456789",
+        telegram_business_bot_token="",
+        telegram_access_bot_token="access-token",
+        admin_telegram_id=42,
+        telegram_access_webhook_secret="0123456789abcdef0123456789abcdef",
+        telegram_business_webhook_secret="abcdef0123456789abcdef0123456789",
+        openrouter_api_key="openrouter-key",
+        openrouter_model="openrouter/auto",
         )
 
 
@@ -36,6 +40,8 @@ def test_settings_require_admin_and_webhook_secret() -> None:
         admin_telegram_id=42,
         telegram_access_webhook_secret="0123456789abcdef0123456789abcdef",
         telegram_business_webhook_secret="abcdef0123456789abcdef0123456789",
+        openrouter_api_key="openrouter-key",
+        openrouter_model="openrouter/auto",
     )
 
     assert settings.admin_telegram_id == 42
@@ -52,6 +58,8 @@ def test_settings_require_separate_business_webhook_secret() -> None:
         admin_telegram_id=42,
         telegram_access_webhook_secret="0123456789abcdef0123456789abcdef",
         telegram_business_webhook_secret="abcdef0123456789abcdef0123456789",
+        openrouter_api_key="openrouter-key",
+        openrouter_model="openrouter/auto",
     )
 
     assert settings.telegram_business_webhook_secret.get_secret_value().startswith(
