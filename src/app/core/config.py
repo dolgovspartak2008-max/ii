@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     telegram_access_bot_token: SecretStr = Field(min_length=1)
     admin_telegram_id: int = Field(gt=0)
     telegram_access_webhook_secret: SecretStr = Field(min_length=32)
+    telegram_business_webhook_secret: SecretStr = Field(min_length=32)
 
 
 @lru_cache
