@@ -25,11 +25,11 @@
 - Modify: `src/app/infrastructure/persistence/repositories/chats.py`
 - Test: `tests/unit/ai/test_use_cases.py`
 
-- [ ] Write failing tests for active-chat generation and handoff/profile skips.
-- [ ] Add `get_customer_chat(tenant_id, telegram_chat_id)` and an `AIResponder` protocol.
-- [ ] Implement `GenerateBusinessReply.execute(tenant_id, chat_id, customer_text)` returning a prefixed reply or `None`.
-- [ ] Run `pytest tests/unit/ai/test_use_cases.py -q`.
-- [ ] Commit the tested application boundary.
+- [x] Write failing tests for active-chat generation and handoff/profile skips.
+- [x] Add `get_customer_chat(tenant_id, telegram_chat_id)` and an `AIResponder` protocol.
+- [x] Implement `GenerateBusinessReply.execute(tenant_id, chat_id, customer_text)` returning a prefixed reply or `None`.
+- [x] Run `pytest tests/unit/ai/test_use_cases.py -q`.
+- [x] Commit the tested application boundary.
 
 ### Task 2: OpenRouter adapter and configuration
 
@@ -39,10 +39,10 @@
 - Modify: `.env.example`
 - Test: `tests/unit/ai/test_openrouter.py`
 
-- [ ] Write failing HTTP-transport tests for request shape, response extraction, and provider errors.
-- [ ] Add settings and a timeout-bound OpenAI-compatible OpenRouter client without logging credentials.
-- [ ] Run `pytest tests/unit/ai/test_openrouter.py -q`.
-- [ ] Commit the provider adapter.
+- [x] Write failing HTTP-transport tests for request shape, response extraction, and provider errors.
+- [x] Add settings and a timeout-bound OpenAI-compatible OpenRouter client without logging credentials.
+- [x] Run `pytest tests/unit/ai/test_openrouter.py -q`.
+- [x] Commit the provider adapter.
 
 ### Task 3: Telegram Business delivery and composition
 
@@ -52,7 +52,7 @@
 - Modify: `tests/unit/chats/test_events.py`
 - Modify: `tests/integration/test_health.py`
 
-- [ ] Write failing handler tests proving text customer messages are delivered with the connection ID and owner/non-text messages are not generated.
-- [ ] Inject the service and bot into the event router, then compose OpenRouter in the ASGI application.
-- [ ] Run focused tests, full `pytest -q --disable-warnings`, and `ruff check .`.
+- [x] Write failing handler tests proving text customer messages are delivered with the connection ID and owner/non-text messages are not generated.
+- [x] Inject the service and bot into the event router, then compose OpenRouter in the ASGI application.
+- [x] Run focused tests, full `pytest -q --disable-warnings`, and `ruff check .`.
 - [ ] Commit, merge the isolated branch, push `main`, and verify the configured provider without printing its key.
