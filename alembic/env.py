@@ -6,6 +6,10 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
 from app.infrastructure.persistence.models.access import Base
+from app.infrastructure.persistence.models.chats import (  # noqa: F401
+    BusinessConnectionModel,
+    CustomerChatModel,
+)
 from app.infrastructure.persistence.models.tenants import (  # noqa: F401
     BusinessProfileModel,
     TenantModel,
