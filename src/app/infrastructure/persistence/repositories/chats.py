@@ -83,6 +83,23 @@ class PostgresBusinessChatRepository:
             model.tenant_id, model.telegram_chat_id, ChatState(model.state)
         )
 
+    async def get_customer_chat(
+        self, tenant_id: UUID, telegram_chat_id: int
+    ) -> CustomerChat | None:
+        """Read exactly one tenant-scoped customer chat."""
+        async with self._session_factory() as session:
+            model = await session.scalar(
+                select(CustomerChatModel).where(
+                    CustomerChatModel.tenant_id == tenant_id,
+                    CustomerChatModel.telegram_chat_id == telegram_chat_id,
+                )
+            )
+        if model is None:
+            return None
+        return CustomerChat(
+            model.tenant_id, model.telegram_chat_id, ChatState(model.state)
+        )
+
     async def mark_human_handoff(
         self, tenant_id: UUID, telegram_chat_id: int
     ) -> CustomerChat:
