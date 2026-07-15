@@ -1,0 +1,1 @@
+"""Telegram Business chat domain."""
