@@ -7,6 +7,7 @@ from app.application.tenants.ports import TenantCreation
 from app.application.tenants.use_cases import (
     OnboardApprovedOwner,
     OwnerNotApproved,
+    SetTenantAIEnabled,
     UpdateBusinessProfile,
 )
 from app.domain.access.entities import AccessApplication, ApplicationStatus
@@ -25,6 +26,7 @@ class FakeTenants:
     def __init__(self) -> None:
         self.tenants: dict[int, Tenant] = {}
         self.profiles: dict[UUID, BusinessProfile] = {}
+        self.ai_enabled: dict[UUID, bool] = {}
 
     async def create_for_owner(self, owner_telegram_id: int) -> TenantCreation:
         tenant = self.tenants.get(owner_telegram_id)
@@ -46,6 +48,13 @@ class FakeTenants:
         profile = BusinessProfile.create(name, description)
         self.profiles[tenant_id] = profile
         return profile
+
+    async def set_ai_enabled(self, tenant_id: UUID, enabled: bool) -> bool:
+        self.ai_enabled[tenant_id] = enabled
+        return enabled
+
+    async def is_ai_enabled(self, tenant_id: UUID) -> bool:
+        return self.ai_enabled.get(tenant_id, True)
 
 
 def test_onboarding_rejects_an_unapproved_owner() -> None:
@@ -75,5 +84,19 @@ def test_approved_owner_can_update_only_own_business_profile() -> None:
 
         assert profile.name == "Кофейня"
         assert len(tenants.profiles) == 1
+
+    asyncio.run(scenario())
+
+
+def test_owner_can_toggle_only_own_tenant_ai() -> None:
+    async def scenario() -> None:
+        tenants = FakeTenants()
+        tenant = await tenants.create_for_owner(42)
+        toggle = SetTenantAIEnabled(tenants)
+
+        enabled = await toggle.execute(42, False)
+
+        assert enabled is False
+        assert await tenants.is_ai_enabled(tenant.tenant.id) is False
 
     asyncio.run(scenario())

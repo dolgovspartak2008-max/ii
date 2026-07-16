@@ -12,7 +12,9 @@ from app.application.access.use_cases import (
 )
 from app.application.ai.use_cases import GenerateBusinessReply
 from app.application.tenants.use_cases import (
+    GetOwnerDashboard,
     OnboardApprovedOwner,
+    SetTenantAIEnabled,
     UpdateBusinessProfile,
 )
 from app.core.config import Settings, get_settings
@@ -83,6 +85,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         create_business_router(
             OnboardApprovedOwner(repository, tenants),
             UpdateBusinessProfile(tenants),
+            SetTenantAIEnabled(tenants),
+            GetOwnerDashboard(tenants),
         )
     )
     business_dispatcher.include_router(

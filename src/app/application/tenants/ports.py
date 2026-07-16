@@ -39,3 +39,12 @@ class TenantPort(Protocol):
         description: str,
     ) -> BusinessProfile:
         """Save business context for one resolved tenant."""
+
+    async def set_ai_enabled(self, tenant_id: UUID, enabled: bool) -> bool:
+        """Enable or disable AI replies for one tenant."""
+
+    async def is_ai_enabled(self, tenant_id: UUID) -> bool:
+        """Return whether the tenant allows AI replies."""
+
+    async def get_business_profile(self, tenant_id: UUID) -> BusinessProfile | None:
+        """Return the business context for one tenant."""

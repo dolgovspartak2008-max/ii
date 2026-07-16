@@ -9,6 +9,12 @@ from app.infrastructure.persistence.repositories.chats import (
 )
 from app.infrastructure.persistence.repositories.tenants import PostgresTenantRepository
 
+NEEDS_REPHRASE_TOKEN = "[[NEEDS_REPHRASE]]"
+CLARIFICATION_TEXT = (
+    "Извините, я не понял вопрос. Пожалуйста, переформулируйте его "
+    "или уточните детали."
+)
+
 
 class GenerateBusinessReply:
     """Generate a reply only for an active chat with tenant business context."""
@@ -29,6 +35,8 @@ class GenerateBusinessReply:
         chat = await self._chats.get_customer_chat(tenant_id, telegram_chat_id)
         if chat is None or chat.state is not ChatState.ACTIVE:
             return None
+        if not await self._tenants.is_ai_enabled(tenant_id):
+            return None
         profile = await self._tenants.get_business_profile(tenant_id)
         if profile is None:
             return None
@@ -40,4 +48,6 @@ class GenerateBusinessReply:
             return None
         if not answer:
             return None
+        if answer == NEEDS_REPHRASE_TOKEN:
+            return CLARIFICATION_TEXT
         return answer if answer.startswith("ИИ:") else f"ИИ: {answer}"

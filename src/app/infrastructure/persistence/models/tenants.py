@@ -20,6 +20,7 @@ class TenantModel(Base):
     )
     owner_telegram_id: Mapped[int] = mapped_column(BigInteger, unique=True, index=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    ai_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

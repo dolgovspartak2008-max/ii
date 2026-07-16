@@ -1,5 +1,7 @@
 """Approved-owner onboarding and tenant-scoped business settings workflows."""
 
+from dataclasses import dataclass
+
 from app.application.tenants.ports import (
     AccessApprovalPort,
     TenantCreation,
@@ -15,6 +17,14 @@ class OwnerNotApproved(PermissionError):
 
 class TenantNotFound(LookupError):
     """Raised when an owner attempts setup before successful onboarding."""
+
+
+@dataclass(frozen=True)
+class OwnerDashboard:
+    """The owner-visible business settings."""
+
+    profile: BusinessProfile | None
+    ai_enabled: bool
 
 
 class OnboardApprovedOwner:
@@ -52,4 +62,33 @@ class UpdateBusinessProfile:
             tenant.id,
             name,
             description,
+        )
+
+
+class SetTenantAIEnabled:
+    """Switch the authenticated owner's tenant AI replies on or off."""
+
+    def __init__(self, tenants: TenantPort) -> None:
+        self._tenants = tenants
+
+    async def execute(self, owner_telegram_id: int, enabled: bool) -> bool:
+        tenant = await self._tenants.get_by_owner(owner_telegram_id)
+        if tenant is None:
+            raise TenantNotFound("Owner has not completed onboarding.")
+        return await self._tenants.set_ai_enabled(tenant.id, enabled)
+
+
+class GetOwnerDashboard:
+    """Load the panel data for the authenticated owner."""
+
+    def __init__(self, tenants: TenantPort) -> None:
+        self._tenants = tenants
+
+    async def execute(self, owner_telegram_id: int) -> OwnerDashboard:
+        tenant = await self._tenants.get_by_owner(owner_telegram_id)
+        if tenant is None:
+            raise TenantNotFound("Owner has not completed onboarding.")
+        return OwnerDashboard(
+            profile=await self._tenants.get_business_profile(tenant.id),
+            ai_enabled=await self._tenants.is_ai_enabled(tenant.id),
         )

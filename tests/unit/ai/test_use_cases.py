@@ -3,7 +3,11 @@ from uuid import uuid4
 import pytest
 
 from app.application.ai.ports import AIProviderError
-from app.application.ai.use_cases import GenerateBusinessReply
+from app.application.ai.use_cases import (
+    CLARIFICATION_TEXT,
+    NEEDS_REPHRASE_TOKEN,
+    GenerateBusinessReply,
+)
 from app.domain.chats.entities import ChatState, CustomerChat
 from app.domain.tenants.entities import BusinessProfile
 
@@ -19,11 +23,17 @@ class FakeChats:
 
 
 class FakeTenants:
-    def __init__(self, profile: BusinessProfile | None) -> None:
+    def __init__(
+        self, profile: BusinessProfile | None, ai_enabled: bool = True
+    ) -> None:
         self.profile = profile
+        self.ai_enabled = ai_enabled
 
     async def get_business_profile(self, tenant_id):
         return self.profile
+
+    async def is_ai_enabled(self, tenant_id):
+        return self.ai_enabled
 
 
 class FakeResponder:
@@ -105,3 +115,33 @@ async def test_provider_failure_does_not_generate_customer_reply() -> None:
     )
 
     assert await service.execute(tenant_id, 100, "Есть капучино?") is None
+
+
+@pytest.mark.asyncio
+async def test_disabled_tenant_does_not_generate_reply() -> None:
+    tenant_id = uuid4()
+    responder = FakeResponder()
+    service = GenerateBusinessReply(
+        FakeTenants(
+            BusinessProfile.create("Кофейня", "Кофе с собой"), ai_enabled=False
+        ),
+        FakeChats(CustomerChat(tenant_id, 100, ChatState.ACTIVE)),
+        responder,
+    )
+
+    assert await service.execute(tenant_id, 100, "Есть капучино?") is None
+    assert responder.requests == []
+
+
+@pytest.mark.asyncio
+async def test_uncertain_answer_becomes_clarification_request() -> None:
+    tenant_id = uuid4()
+    service = GenerateBusinessReply(
+        FakeTenants(BusinessProfile.create("Кофейня", "Кофе с собой")),
+        FakeChats(CustomerChat(tenant_id, 100, ChatState.ACTIVE)),
+        FakeResponder(NEEDS_REPHRASE_TOKEN),
+    )
+
+    reply = await service.execute(tenant_id, 100, "Непонятный вопрос")
+
+    assert reply == CLARIFICATION_TEXT

@@ -2,7 +2,7 @@
 
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -87,6 +87,26 @@ class PostgresTenantRepository:
         if model is None:
             return None
         return BusinessProfile.create(model.name, model.description)
+
+    async def set_ai_enabled(self, tenant_id: UUID, enabled: bool) -> bool:
+        """Persist the global AI-reply switch for one tenant."""
+        statement = (
+            update(TenantModel)
+            .where(TenantModel.id == tenant_id)
+            .values(ai_enabled=enabled)
+            .returning(TenantModel.ai_enabled)
+        )
+        async with self._session_factory() as session, session.begin():
+            value = (await session.execute(statement)).scalar_one()
+        return value
+
+    async def is_ai_enabled(self, tenant_id: UUID) -> bool:
+        """Return false for a missing or globally disabled tenant."""
+        async with self._session_factory() as session:
+            value = await session.scalar(
+                select(TenantModel.ai_enabled).where(TenantModel.id == tenant_id)
+            )
+        return value is True
 
     @staticmethod
     def _to_tenant(model: TenantModel) -> Tenant:
