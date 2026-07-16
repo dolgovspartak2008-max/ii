@@ -11,9 +11,13 @@ from app.infrastructure.persistence.repositories.chats import (
 from app.infrastructure.persistence.repositories.tenants import PostgresTenantRepository
 
 
-def is_owner_message(owner_telegram_id: int, sender_telegram_id: int | None) -> bool:
+def is_owner_message(
+    owner_telegram_id: int,
+    sender_telegram_id: int | None,
+    sender_business_bot: object | None = None,
+) -> bool:
     """Return whether a Business message was written by the tenant owner."""
-    return sender_telegram_id == owner_telegram_id
+    return sender_business_bot is None and sender_telegram_id == owner_telegram_id
 
 
 async def deliver_business_reply(
@@ -65,7 +69,11 @@ def create_business_events_router(
             return
         sender_id = message.from_user.id if message.from_user is not None else None
         await chats.open_customer_chat(connection.tenant_id, message.chat.id)
-        if is_owner_message(connection.owner_telegram_id, sender_id):
+        if is_owner_message(
+            connection.owner_telegram_id,
+            sender_id,
+            message.sender_business_bot,
+        ):
             await chats.mark_human_handoff(connection.tenant_id, message.chat.id)
             return
         await deliver_business_reply(message, connection, replies, bot)

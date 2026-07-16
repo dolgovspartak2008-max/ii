@@ -19,6 +19,17 @@ def test_owner_message_is_identified_by_telegram_id() -> None:
     assert is_owner_message(owner_telegram_id=42, sender_telegram_id=7) is False
 
 
+def test_message_sent_by_business_bot_is_not_an_owner_handoff() -> None:
+    assert (
+        is_owner_message(
+            owner_telegram_id=42,
+            sender_telegram_id=42,
+            sender_business_bot=object(),
+        )
+        is False
+    )
+
+
 class FakeReplies:
     def __init__(self, reply: str | None) -> None:
         self.reply = reply
