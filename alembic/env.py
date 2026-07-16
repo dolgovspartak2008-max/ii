@@ -5,6 +5,7 @@ from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
+from app.infrastructure.persistence.migrations import migration_database_url
 from app.infrastructure.persistence.models.access import Base
 from app.infrastructure.persistence.models.chats import (  # noqa: F401
     BusinessConnectionModel,
@@ -16,6 +17,10 @@ from app.infrastructure.persistence.models.tenants import (  # noqa: F401
 )
 
 config = context.config
+config.set_main_option(
+    "sqlalchemy.url",
+    migration_database_url(config.get_main_option("sqlalchemy.url")),
+)
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
