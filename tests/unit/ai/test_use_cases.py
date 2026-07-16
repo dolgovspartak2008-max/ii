@@ -217,3 +217,26 @@ async def test_intent_markers_receive_their_own_customer_safe_reply(
     reply = await service.execute(tenant_id, 100, "Вопрос клиента")
 
     assert reply == expected
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "answer",
+    [
+        "User Safety: safe",
+        "ИИ: `User Safety: unsafe`",
+    ],
+)
+async def test_provider_safety_artifact_becomes_owner_wait_reply(
+    answer: str,
+) -> None:
+    tenant_id = uuid4()
+    service = GenerateBusinessReply(
+        FakeTenants(BusinessProfile.create("Кофейня", "Кофе с собой")),
+        FakeChats(CustomerChat(tenant_id, 100, ChatState.ACTIVE)),
+        FakeResponder(answer),
+    )
+
+    reply = await service.execute(tenant_id, 100, "Вопрос клиента")
+
+    assert reply == OWNER_WAIT_TEXT

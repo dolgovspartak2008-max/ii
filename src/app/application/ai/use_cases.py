@@ -24,6 +24,7 @@ GREETING_TEXT = "Здравствуйте! Чем могу помочь по в�
 SHORT_GREETINGS = frozenset(
     {"здравствуйте", "здраствуйте", "привет", "добрый день", "добрый вечер"}
 )
+PROVIDER_SAFETY_STATUSES = frozenset({"user safety: safe", "user safety: unsafe"})
 
 
 def normalize_reserved_response(answer: str) -> str:
@@ -40,6 +41,11 @@ def is_short_greeting(customer_text: str) -> bool:
     """Recognize a standalone greeting without delegating it to the provider."""
     normalized = " ".join(customer_text.lower().split()).rstrip("!?. ,")
     return normalized in SHORT_GREETINGS
+
+
+def is_provider_safety_artifact(answer: str) -> bool:
+    """Recognize provider-internal safety statuses that are not customer replies."""
+    return normalize_reserved_response(answer).casefold() in PROVIDER_SAFETY_STATUSES
 
 
 class GenerateBusinessReply:
@@ -77,6 +83,8 @@ class GenerateBusinessReply:
         if not answer:
             return None
         marker = normalize_reserved_response(answer)
+        if is_provider_safety_artifact(answer):
+            return OWNER_WAIT_TEXT
         if marker == NEEDS_OWNER_TOKEN:
             return OWNER_WAIT_TEXT
         if marker in {NEEDS_REPHRASE_TOKEN, OUT_OF_SCOPE_TOKEN}:

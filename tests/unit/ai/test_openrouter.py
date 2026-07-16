@@ -41,6 +41,8 @@ async def test_openrouter_sends_tenant_business_context_and_extracts_answer() ->
     assert "грамматически правильном русском языке" in system_prompt
     assert "пробелы между словами" in system_prompt
     assert "прямой вопрос клиента" in system_prompt
+    assert "Не называй цены" in system_prompt
+    assert "User Safety" in system_prompt
     assert "Студия" in payload["messages"][0]["content"]
     assert payload["messages"][1] == {
         "role": "user",
