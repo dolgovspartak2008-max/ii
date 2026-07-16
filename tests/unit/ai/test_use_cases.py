@@ -5,7 +5,11 @@ import pytest
 from app.application.ai.ports import AIProviderError
 from app.application.ai.use_cases import (
     CLARIFICATION_TEXT,
+    GREETING_TEXT,
+    NEEDS_OWNER_TOKEN,
     NEEDS_REPHRASE_TOKEN,
+    OUT_OF_SCOPE_TOKEN,
+    OWNER_WAIT_TEXT,
     GenerateBusinessReply,
 )
 from app.domain.chats.entities import ChatState, CustomerChat
@@ -73,6 +77,25 @@ async def test_active_chat_generates_tenant_scoped_prefixed_reply() -> None:
     assert responder.requests == [
         (tenant_id, "Автосервис", "Ремонт автомобилей", "Сколько длится ремонт?")
     ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("greeting", ["Здравствуйте", "Привет!", "Добрый день"])
+async def test_short_greeting_returns_fixed_welcome_without_provider_call(
+    greeting: str,
+) -> None:
+    tenant_id = uuid4()
+    responder = FakeResponder()
+    service = GenerateBusinessReply(
+        FakeTenants(BusinessProfile.create("Кофейня", "Кофе с собой")),
+        FakeChats(CustomerChat(tenant_id, 100, ChatState.ACTIVE)),
+        responder,
+    )
+
+    reply = await service.execute(tenant_id, 100, greeting)
+
+    assert reply == GREETING_TEXT
+    assert responder.requests == []
 
 
 @pytest.mark.asyncio
@@ -168,3 +191,29 @@ async def test_uncertainty_marker_variants_become_clarification(
     reply = await service.execute(tenant_id, 100, "Непонятный вопрос")
 
     assert reply == CLARIFICATION_TEXT
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("answer", "expected"),
+    [
+        (OUT_OF_SCOPE_TOKEN, CLARIFICATION_TEXT),
+        ("ИИ: `[[OUT_OF_SCOPE]]`", CLARIFICATION_TEXT),
+        (NEEDS_OWNER_TOKEN, OWNER_WAIT_TEXT),
+        ("`[[NEEDS_OWNER]]`", OWNER_WAIT_TEXT),
+    ],
+)
+async def test_intent_markers_receive_their_own_customer_safe_reply(
+    answer: str,
+    expected: str,
+) -> None:
+    tenant_id = uuid4()
+    service = GenerateBusinessReply(
+        FakeTenants(BusinessProfile.create("Кофейня", "Кофе с собой")),
+        FakeChats(CustomerChat(tenant_id, 100, ChatState.ACTIVE)),
+        FakeResponder(answer),
+    )
+
+    reply = await service.execute(tenant_id, 100, "Вопрос клиента")
+
+    assert reply == expected

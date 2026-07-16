@@ -9,21 +9,37 @@ from app.infrastructure.persistence.repositories.chats import (
 )
 from app.infrastructure.persistence.repositories.tenants import PostgresTenantRepository
 
+OUT_OF_SCOPE_TOKEN = "[[OUT_OF_SCOPE]]"
 NEEDS_REPHRASE_TOKEN = "[[NEEDS_REPHRASE]]"
+NEEDS_OWNER_TOKEN = "[[NEEDS_OWNER]]"
 CLARIFICATION_TEXT = (
     "Извините, я не понял вопрос. Пожалуйста, переформулируйте его "
     "или уточните детали."
 )
+OWNER_WAIT_TEXT = (
+    "Этот вопрос может требовать уточнения у владельца или консультанта. "
+    "Пожалуйста, дождитесь их ответа, чтобы получить более точную консультацию."
+)
+GREETING_TEXT = "Здравствуйте! Чем могу помочь по вопросам нашего бизнеса?"
+SHORT_GREETINGS = frozenset(
+    {"здравствуйте", "здраствуйте", "привет", "добрый день", "добрый вечер"}
+)
 
 
-def is_needs_rephrase_response(answer: str) -> bool:
-    """Recognize the reserved provider marker despite harmless formatting."""
+def normalize_reserved_response(answer: str) -> str:
+    """Normalize a reserved provider marker despite harmless formatting."""
     normalized = answer.strip()
     if normalized.startswith("ИИ:"):
         normalized = normalized.removeprefix("ИИ:").strip()
     if normalized.startswith("`") and normalized.endswith("`"):
         normalized = normalized[1:-1].strip()
-    return normalized == NEEDS_REPHRASE_TOKEN
+    return normalized
+
+
+def is_short_greeting(customer_text: str) -> bool:
+    """Recognize a standalone greeting without delegating it to the provider."""
+    normalized = " ".join(customer_text.lower().split()).rstrip("!?. ,")
+    return normalized in SHORT_GREETINGS
 
 
 class GenerateBusinessReply:
@@ -50,6 +66,8 @@ class GenerateBusinessReply:
         profile = await self._tenants.get_business_profile(tenant_id)
         if profile is None:
             return None
+        if is_short_greeting(customer_text):
+            return GREETING_TEXT
         try:
             answer = (await self._responder.generate(
                 tenant_id, profile.name, profile.description, customer_text
@@ -58,6 +76,9 @@ class GenerateBusinessReply:
             return None
         if not answer:
             return None
-        if is_needs_rephrase_response(answer):
+        marker = normalize_reserved_response(answer)
+        if marker == NEEDS_OWNER_TOKEN:
+            return OWNER_WAIT_TEXT
+        if marker in {NEEDS_REPHRASE_TOKEN, OUT_OF_SCOPE_TOKEN}:
             return CLARIFICATION_TEXT
         return answer if answer.startswith("ИИ:") else f"ИИ: {answer}"
