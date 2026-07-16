@@ -11,6 +11,10 @@ from app.application.access.use_cases import (
     SubmitAccessApplication,
 )
 from app.application.ai.use_cases import GenerateBusinessReply
+from app.application.chats.use_cases import (
+    ListOwnerHandoffChats,
+    ResumeOwnerChatAI,
+)
 from app.application.tenants.use_cases import (
     GetOwnerDashboard,
     OnboardApprovedOwner,
@@ -87,6 +91,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             UpdateBusinessProfile(tenants),
             SetTenantAIEnabled(tenants),
             GetOwnerDashboard(tenants),
+            ListOwnerHandoffChats(tenants, chats),
+            ResumeOwnerChatAI(tenants, chats),
         )
     )
     business_dispatcher.include_router(
