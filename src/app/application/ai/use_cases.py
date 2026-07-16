@@ -16,6 +16,16 @@ CLARIFICATION_TEXT = (
 )
 
 
+def is_needs_rephrase_response(answer: str) -> bool:
+    """Recognize the reserved provider marker despite harmless formatting."""
+    normalized = answer.strip()
+    if normalized.startswith("ИИ:"):
+        normalized = normalized.removeprefix("ИИ:").strip()
+    if normalized.startswith("`") and normalized.endswith("`"):
+        normalized = normalized[1:-1].strip()
+    return normalized == NEEDS_REPHRASE_TOKEN
+
+
 class GenerateBusinessReply:
     """Generate a reply only for an active chat with tenant business context."""
 
@@ -48,6 +58,6 @@ class GenerateBusinessReply:
             return None
         if not answer:
             return None
-        if answer == NEEDS_REPHRASE_TOKEN:
+        if is_needs_rephrase_response(answer):
             return CLARIFICATION_TEXT
         return answer if answer.startswith("ИИ:") else f"ИИ: {answer}"

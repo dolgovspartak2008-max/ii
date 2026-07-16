@@ -145,3 +145,26 @@ async def test_uncertain_answer_becomes_clarification_request() -> None:
     reply = await service.execute(tenant_id, 100, "Непонятный вопрос")
 
     assert reply == CLARIFICATION_TEXT
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "answer",
+    [
+        "ИИ: [[NEEDS_REPHRASE]]",
+        "`[[NEEDS_REPHRASE]]`",
+    ],
+)
+async def test_uncertainty_marker_variants_become_clarification(
+    answer: str,
+) -> None:
+    tenant_id = uuid4()
+    service = GenerateBusinessReply(
+        FakeTenants(BusinessProfile.create("Кофейня", "Кофе с собой")),
+        FakeChats(CustomerChat(tenant_id, 100, ChatState.ACTIVE)),
+        FakeResponder(answer),
+    )
+
+    reply = await service.execute(tenant_id, 100, "Непонятный вопрос")
+
+    assert reply == CLARIFICATION_TEXT
