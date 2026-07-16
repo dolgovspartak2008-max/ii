@@ -65,6 +65,17 @@ class CapturingSession:
         self.statement = statement
 
 
+class EmptyResult:
+    def scalar_one_or_none(self):
+        return None
+
+
+class ResumeCapturingSession(CapturingSession):
+    async def execute(self, statement):
+        self.statement = statement
+        return EmptyResult()
+
+
 class CapturingSessionFactory:
     def __init__(self, session: CapturingSession) -> None:
         self.session = session
@@ -86,6 +97,24 @@ async def test_new_connection_replaces_the_tenants_previous_connection() -> None
     )
     assert "ON CONFLICT (tenant_id) DO UPDATE" in sql
     assert "connection_id = excluded.connection_id" in sql
+
+
+@pytest.mark.asyncio
+async def test_resume_ai_scopes_update_to_tenant_chat_and_handoff_state() -> None:
+    session = ResumeCapturingSession()
+    repository = PostgresBusinessChatRepository(CapturingSessionFactory(session))
+
+    resumed = await repository.resume_ai(uuid4(), 700)
+
+    assert resumed is False
+    assert session.statement is not None
+    sql = " ".join(
+        str(session.statement.compile(dialect=postgresql.dialect())).split()
+    )
+    assert "UPDATE customer_chats SET state=" in sql
+    assert "customer_chats.tenant_id" in sql
+    assert "customer_chats.telegram_chat_id" in sql
+    assert "customer_chats.state" in sql
 
 
 @pytest.mark.asyncio

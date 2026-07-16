@@ -104,6 +104,26 @@ class PostgresBusinessChatRepository:
             model.tenant_id, model.telegram_chat_id, ChatState(model.state)
         )
 
+    async def list_handoff_chats(
+        self, tenant_id: UUID, limit: int = 10
+    ) -> list[CustomerChat]:
+        """List a bounded set of chats the tenant owner is handling manually."""
+        statement = (
+            select(CustomerChatModel)
+            .where(
+                CustomerChatModel.tenant_id == tenant_id,
+                CustomerChatModel.state == ChatState.HUMAN_HANDOFF.value,
+            )
+            .order_by(CustomerChatModel.created_at.asc())
+            .limit(limit)
+        )
+        async with self._session_factory() as session:
+            models = (await session.scalars(statement)).all()
+        return [
+            CustomerChat(model.tenant_id, model.telegram_chat_id, ChatState(model.state))
+            for model in models
+        ]
+
     async def mark_human_handoff(
         self, tenant_id: UUID, telegram_chat_id: int
     ) -> CustomerChat:
@@ -121,3 +141,19 @@ class PostgresBusinessChatRepository:
         return CustomerChat(
             model.tenant_id, model.telegram_chat_id, ChatState(model.state)
         )
+
+    async def resume_ai(self, tenant_id: UUID, telegram_chat_id: int) -> bool:
+        """Switch one tenant-scoped handed-off chat back to active."""
+        statement = (
+            update(CustomerChatModel)
+            .where(
+                CustomerChatModel.tenant_id == tenant_id,
+                CustomerChatModel.telegram_chat_id == telegram_chat_id,
+                CustomerChatModel.state == ChatState.HUMAN_HANDOFF.value,
+            )
+            .values(state=ChatState.ACTIVE.value)
+            .returning(CustomerChatModel.id)
+        )
+        async with self._session_factory() as session, session.begin():
+            result = await session.execute(statement)
+        return result.scalar_one_or_none() is not None
