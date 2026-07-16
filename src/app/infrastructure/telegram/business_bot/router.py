@@ -11,6 +11,10 @@ from aiogram.types import (
     Message,
 )
 
+from app.application.chats.use_cases import (
+    ListOwnerHandoffChats,
+    ResumeOwnerChatAI,
+)
 from app.application.tenants.use_cases import (
     GetOwnerDashboard,
     OnboardApprovedOwner,
@@ -19,11 +23,16 @@ from app.application.tenants.use_cases import (
     TenantNotFound,
     UpdateBusinessProfile,
 )
+from app.domain.chats.entities import CustomerChat
 from app.domain.tenants.entities import InvalidBusinessProfile
-from app.infrastructure.telegram.business_bot.callbacks import OwnerPanelCallback
+from app.infrastructure.telegram.business_bot.callbacks import (
+    OwnerChatCallback,
+    OwnerPanelCallback,
+)
 
 ACCESS_REQUIRED_TEXT = "Сначала подайте заявку через отдельный бот доступа."
 BUSINESS_FORMAT_TEXT = "Формат: /business Название | Чем занимается бизнес"
+START_REQUIRED_TEXT = "Сначала откройте панель командой /start."
 
 
 class ProfileEdit(StatesGroup):
@@ -53,7 +62,7 @@ def create_owner_panel_keyboard(ai_enabled: bool) -> InlineKeyboardMarkup:
             ],
             [
                 InlineKeyboardButton(
-                    text="✏️ Изменить описание",
+                    text="✏️ Изменить профиль",
                     callback_data=OwnerPanelCallback(action="edit").pack(),
                 )
             ],
@@ -61,6 +70,12 @@ def create_owner_panel_keyboard(ai_enabled: bool) -> InlineKeyboardMarkup:
                 InlineKeyboardButton(
                     text=ai_label,
                     callback_data=OwnerPanelCallback(action="toggle_ai").pack(),
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="💬 Диалоги у вас",
+                    callback_data=OwnerPanelCallback(action="chats").pack(),
                 )
             ],
             [
@@ -90,13 +105,66 @@ def create_confirmation_keyboard() -> InlineKeyboardMarkup:
     )
 
 
+def create_handoff_chats_keyboard(chats: list[CustomerChat]) -> InlineKeyboardMarkup:
+    """Create resume controls without exposing a tenant identifier."""
+    rows = [
+        [
+            InlineKeyboardButton(
+                text=f"Передать ИИ: чат {chat.telegram_chat_id}",
+                callback_data=OwnerChatCallback(
+                    action="resume", telegram_chat_id=chat.telegram_chat_id
+                ).pack(),
+            )
+        ]
+        for chat in chats
+    ]
+    rows.append(
+        [
+            InlineKeyboardButton(
+                text="⬅️ Назад",
+                callback_data=OwnerPanelCallback(action="back").pack(),
+            )
+        ]
+    )
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
 async def render_panel(
     message: Message, dashboard: GetOwnerDashboard, owner_id: int
 ) -> None:
+    """Render the latest state instead of trusting stale callback data."""
     data = await dashboard.execute(owner_id)
     await message.answer(
-        "Панель управления", reply_markup=create_owner_panel_keyboard(data.ai_enabled)
+        "Панель управления",
+        reply_markup=create_owner_panel_keyboard(data.ai_enabled),
     )
+
+
+async def open_owner_panel(
+    message: Message,
+    state: FSMContext,
+    owner_id: int,
+    onboarding: OnboardApprovedOwner,
+    dashboard: GetOwnerDashboard,
+) -> None:
+    """Clear unfinished edits and open the panel for one approved owner."""
+    await state.clear()
+    try:
+        await onboarding.execute(owner_id)
+        await render_panel(message, dashboard, owner_id)
+    except OwnerNotApproved:
+        await message.answer(ACCESS_REQUIRED_TEXT)
+    except TenantNotFound:
+        await message.answer(START_REQUIRED_TEXT)
+
+
+async def render_panel_or_request_start(
+    message: Message, dashboard: GetOwnerDashboard, owner_id: int
+) -> None:
+    try:
+        await render_panel(message, dashboard, owner_id)
+    except TenantNotFound:
+        await message.answer(START_REQUIRED_TEXT)
 
 
 def create_business_router(
@@ -104,40 +172,61 @@ def create_business_router(
     update_profile: UpdateBusinessProfile,
     set_ai_enabled: SetTenantAIEnabled,
     dashboard: GetOwnerDashboard,
+    handoffs: ListOwnerHandoffChats,
+    resume: ResumeOwnerChatAI,
 ) -> Router:
     """Create main-bot handlers that only operate on the sender's tenant."""
     router = Router(name="business-owner-settings")
 
     @router.message(CommandStart())
-    @router.message(Command("admin"))
-    async def start(message: Message) -> None:
+    async def start(message: Message, state: FSMContext) -> None:
         if message.from_user is None:
             return
-        try:
-            await onboarding.execute(message.from_user.id)
-            await render_panel(message, dashboard, message.from_user.id)
-        except OwnerNotApproved:
-            await message.answer(ACCESS_REQUIRED_TEXT)
+        await open_owner_panel(
+            message,
+            state,
+            message.from_user.id,
+            onboarding,
+            dashboard,
+        )
+
+    @router.message(Command("admin"))
+    async def admin(message: Message, state: FSMContext) -> None:
+        if message.from_user is None:
+            return
+        await open_owner_panel(
+            message,
+            state,
+            message.from_user.id,
+            onboarding,
+            dashboard,
+        )
 
     @router.callback_query(OwnerPanelCallback.filter(F.action == "show"))
     async def show(callback: CallbackQuery) -> None:
         if callback.from_user is None or callback.message is None:
+            await callback.answer()
             return
-        data = await dashboard.execute(callback.from_user.id)
-        profile = data.profile
-        text = (
-            f"📋 Мой бизнес\nНазвание: {profile.name}\nОписание: {profile.description}"
-            if profile is not None
-            else "📋 Профиль бизнеса пока не заполнен."
-        )
-        await callback.message.answer(
-            text, reply_markup=create_owner_panel_keyboard(data.ai_enabled)
-        )
+        try:
+            data = await dashboard.execute(callback.from_user.id)
+            profile = data.profile
+            text = (
+                f"📋 Мой бизнес\nНазвание: {profile.name}\nОписание: {profile.description}"
+                if profile is not None
+                else "📋 Профиль бизнеса пока не заполнен."
+            )
+            await callback.message.answer(
+                text,
+                reply_markup=create_owner_panel_keyboard(data.ai_enabled),
+            )
+        except TenantNotFound:
+            await callback.message.answer(START_REQUIRED_TEXT)
         await callback.answer()
 
     @router.callback_query(OwnerPanelCallback.filter(F.action == "edit"))
     async def edit(callback: CallbackQuery, state: FSMContext) -> None:
-        if callback.from_user is None:
+        if callback.from_user is None or callback.message is None:
+            await callback.answer()
             return
         await state.set_state(ProfileEdit.name)
         await callback.message.answer("Введите название бизнеса.")
@@ -164,14 +253,12 @@ def create_business_router(
             f"Проверьте профиль:\nНазвание: {data['name']}\n"
             f"Описание: {data['description']}"
         )
-        await message.answer(
-            preview,
-            reply_markup=create_confirmation_keyboard(),
-        )
+        await message.answer(preview, reply_markup=create_confirmation_keyboard())
 
     @router.callback_query(OwnerPanelCallback.filter(F.action == "confirm"))
     async def confirm(callback: CallbackQuery, state: FSMContext) -> None:
-        if callback.from_user is None:
+        if callback.from_user is None or callback.message is None:
+            await callback.answer()
             return
         data = await state.get_data()
         try:
@@ -184,35 +271,116 @@ def create_business_router(
             )
         else:
             await callback.message.answer(f"Бизнес сохранён: {profile.name}.")
+            await render_panel_or_request_start(
+                callback.message,
+                dashboard,
+                callback.from_user.id,
+            )
         await state.clear()
         await callback.answer()
 
     @router.callback_query(OwnerPanelCallback.filter(F.action == "cancel"))
     async def cancel(callback: CallbackQuery, state: FSMContext) -> None:
+        if callback.from_user is None or callback.message is None:
+            await callback.answer()
+            return
         await state.clear()
         await callback.message.answer("Изменения отменены.")
+        await render_panel_or_request_start(
+            callback.message,
+            dashboard,
+            callback.from_user.id,
+        )
         await callback.answer()
 
     @router.callback_query(OwnerPanelCallback.filter(F.action == "toggle_ai"))
     async def toggle_ai(callback: CallbackQuery) -> None:
-        if callback.from_user is None:
+        if callback.from_user is None or callback.message is None:
+            await callback.answer()
             return
-        data = await dashboard.execute(callback.from_user.id)
-        enabled = await set_ai_enabled.execute(
-            callback.from_user.id, not data.ai_enabled
-        )
-        status = "включён" if enabled else "выключен"
-        await callback.message.answer(
-            f"ИИ {status}.", reply_markup=create_owner_panel_keyboard(enabled)
+        try:
+            data = await dashboard.execute(callback.from_user.id)
+            enabled = await set_ai_enabled.execute(
+                callback.from_user.id,
+                not data.ai_enabled,
+            )
+        except TenantNotFound:
+            await callback.message.answer(START_REQUIRED_TEXT)
+        else:
+            status = "включён" if enabled else "выключен"
+            await callback.message.answer(f"ИИ {status}.")
+            await render_panel_or_request_start(
+                callback.message,
+                dashboard,
+                callback.from_user.id,
+            )
+        await callback.answer()
+
+    @router.callback_query(OwnerPanelCallback.filter(F.action == "chats"))
+    async def list_handoff_chats(callback: CallbackQuery) -> None:
+        if callback.from_user is None or callback.message is None:
+            await callback.answer()
+            return
+        try:
+            chats = await handoffs.execute(callback.from_user.id)
+        except TenantNotFound:
+            await callback.message.answer(START_REQUIRED_TEXT)
+        else:
+            text = (
+                "Диалоги у вас. Выберите, какой из них снова передать ИИ."
+                if chats
+                else "Нет диалогов, переданных вам."
+            )
+            await callback.message.answer(
+                text,
+                reply_markup=create_handoff_chats_keyboard(chats),
+            )
+        await callback.answer()
+
+    @router.callback_query(OwnerChatCallback.filter(F.action == "resume"))
+    async def resume_chat(
+        callback: CallbackQuery,
+        callback_data: OwnerChatCallback,
+    ) -> None:
+        if callback.from_user is None or callback.message is None:
+            await callback.answer()
+            return
+        try:
+            resumed = await resume.execute(
+                callback.from_user.id,
+                callback_data.telegram_chat_id,
+            )
+        except TenantNotFound:
+            await callback.message.answer(START_REQUIRED_TEXT)
+        else:
+            text = (
+                "Диалог передан ИИ."
+                if resumed
+                else "Этот диалог уже передан ИИ или недоступен."
+            )
+            await callback.message.answer(text)
+        await callback.answer()
+
+    @router.callback_query(OwnerPanelCallback.filter(F.action == "back"))
+    async def back(callback: CallbackQuery) -> None:
+        if callback.from_user is None or callback.message is None:
+            await callback.answer()
+            return
+        await render_panel_or_request_start(
+            callback.message,
+            dashboard,
+            callback.from_user.id,
         )
         await callback.answer()
 
     @router.callback_query(OwnerPanelCallback.filter(F.action == "help"))
     async def help_panel(callback: CallbackQuery) -> None:
-        await callback.message.answer(
-            "ИИ отвечает клиентам только когда включён. Если вы сами отвечаете "
-            "в клиентском чате, ИИ передаёт этот диалог вам."
-        )
+        if callback.message is not None:
+            await callback.message.answer(
+                "ИИ отвечает только когда включён. Если вы отвечаете клиенту сами, "
+                "диалог передаётся вам. В разделе «Диалоги у вас» его можно "
+                "вернуть ИИ."
+            )
         await callback.answer()
 
     @router.message(Command("business"))
@@ -226,11 +394,12 @@ def create_business_router(
         try:
             profile = await update_profile.execute(message.from_user.id, *parsed)
         except TenantNotFound:
-            await message.answer("Сначала нажмите /start в этом боте.")
+            await message.answer(START_REQUIRED_TEXT)
             return
         except InvalidBusinessProfile:
             await message.answer(BUSINESS_FORMAT_TEXT)
             return
         await message.answer(f"Бизнес сохранён: {profile.name}.")
+        await render_panel_or_request_start(message, dashboard, message.from_user.id)
 
     return router
