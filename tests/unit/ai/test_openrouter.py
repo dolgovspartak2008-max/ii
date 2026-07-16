@@ -33,10 +33,14 @@ async def test_openrouter_sends_tenant_business_context_and_extracts_answer() ->
     assert received["authorization"] == "Bearer test-key"
     payload = received["payload"]
     assert payload["model"] == "openrouter/auto"
+    assert payload["temperature"] == 0.2
     system_prompt = payload["messages"][0]["content"]
     assert "приветствие" in system_prompt
     assert "[[OUT_OF_SCOPE]]" in system_prompt
     assert "[[NEEDS_OWNER]]" in system_prompt
+    assert "грамматически правильном русском языке" in system_prompt
+    assert "пробелы между словами" in system_prompt
+    assert "прямой вопрос клиента" in system_prompt
     assert "Студия" in payload["messages"][0]["content"]
     assert payload["messages"][1] == {
         "role": "user",
