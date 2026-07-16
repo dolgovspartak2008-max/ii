@@ -211,7 +211,9 @@ def create_business_router(
             data = await dashboard.execute(callback.from_user.id)
             profile = data.profile
             text = (
-                f"📋 Мой бизнес\nНазвание: {profile.name}\nОписание: {profile.description}"
+                "📋 Мой бизнес\n"
+                f"Название: {profile.name}\n"
+                f"Описание: {profile.description}"
                 if profile is not None
                 else "📋 Профиль бизнеса пока не заполнен."
             )

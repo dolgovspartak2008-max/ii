@@ -120,7 +120,11 @@ class PostgresBusinessChatRepository:
         async with self._session_factory() as session:
             models = (await session.scalars(statement)).all()
         return [
-            CustomerChat(model.tenant_id, model.telegram_chat_id, ChatState(model.state))
+            CustomerChat(
+                model.tenant_id,
+                model.telegram_chat_id,
+                ChatState(model.state),
+            )
             for model in models
         ]
 

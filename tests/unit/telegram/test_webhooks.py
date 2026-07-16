@@ -61,7 +61,10 @@ async def test_main_bot_registers_owner_panel_commands() -> None:
     await configure_telegram_webhooks(settings, access_bot, business_bot)
 
     assert access_bot.commands == []
-    assert [(command.command, command.description) for command in business_bot.commands] == [
+    commands = [
+        (command.command, command.description) for command in business_bot.commands
+    ]
+    assert commands == [
         ("start", "Открыть панель управления"),
         ("admin", "Открыть панель управления"),
     ]
