@@ -24,8 +24,6 @@ SUBMIT_CALLBACK = "access:submit"
 
 def create_access_router(
     submit: SubmitAccessApplication,
-    approve: ApproveAccessApplication,
-    reject: RejectAccessApplication,
 ) -> Router:
     """Create isolated handlers for the separate access application bot."""
     router = Router(name="access-application")
@@ -63,6 +61,16 @@ def create_access_router(
             await callback.answer(
                 "Ваша заявка уже находится на рассмотрении.", show_alert=True
             )
+
+    return router
+
+
+def create_access_review_router(
+    approve: ApproveAccessApplication,
+    reject: RejectAccessApplication,
+) -> Router:
+    """Handle administrator review controls in the main Telegram bot."""
+    router = Router(name="access-review")
 
     @router.callback_query(AccessReviewCallback.filter())
     async def review_application(

@@ -30,15 +30,27 @@ class OwnerDashboard:
 class OnboardApprovedOwner:
     """Create the one tenant allowed for an approved Telegram owner."""
 
-    def __init__(self, approvals: AccessApprovalPort, tenants: TenantPort) -> None:
+    def __init__(
+        self,
+        approvals: AccessApprovalPort,
+        tenants: TenantPort,
+        direct_owner_telegram_id: int | None = None,
+    ) -> None:
         self._approvals = approvals
         self._tenants = tenants
+        self._direct_owner_telegram_id = direct_owner_telegram_id
 
     async def execute(self, owner_telegram_id: int) -> TenantCreation:
         """Verify approval before creating or returning the owner's tenant."""
-        application = await self._approvals.get_by_telegram_id(owner_telegram_id)
-        if application is None or application.status is not ApplicationStatus.APPROVED:
-            raise OwnerNotApproved("Owner must have an approved access application.")
+        if owner_telegram_id != self._direct_owner_telegram_id:
+            application = await self._approvals.get_by_telegram_id(owner_telegram_id)
+            if (
+                application is None
+                or application.status is not ApplicationStatus.APPROVED
+            ):
+                raise OwnerNotApproved(
+                    "Owner must have an approved access application."
+                )
         return await self._tenants.create_for_owner(owner_telegram_id)
 
 

@@ -39,7 +39,10 @@ from app.infrastructure.persistence.session import (
     create_session_factory,
 )
 from app.infrastructure.telegram.access_bot.notifier import AiogramAccessNotifier
-from app.infrastructure.telegram.access_bot.router import create_access_router
+from app.infrastructure.telegram.access_bot.router import (
+    create_access_review_router,
+    create_access_router,
+)
 from app.infrastructure.telegram.business_bot.events import (
     create_business_events_router,
 )
@@ -61,7 +64,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     chats = PostgresBusinessChatRepository(session_factory)
     outbox = PostgresAccessOutboxRepository(session_factory)
     access_bot = Bot(token=settings.telegram_access_bot_token.get_secret_value())
-    notifier = AiogramAccessNotifier(access_bot, settings.admin_telegram_id)
+    business_bot = Bot(token=settings.telegram_business_bot_token.get_secret_value())
+    notifier = AiogramAccessNotifier(
+        access_bot,
+        business_bot,
+        settings.admin_telegram_id,
+    )
     submit = SubmitAccessApplication(repository, notifier, outbox)
     approve = ApproveAccessApplication(
         repository,
@@ -76,18 +84,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         outbox,
     )
     access_dispatcher = Dispatcher()
-    access_dispatcher.include_router(create_access_router(submit, approve, reject))
+    access_dispatcher.include_router(create_access_router(submit))
 
-    business_bot = Bot(token=settings.telegram_business_bot_token.get_secret_value())
     responder = OpenRouterAIResponder(
         settings.openrouter_api_key.get_secret_value(),
         settings.openrouter_model,
     )
     replies = GenerateBusinessReply(tenants, chats, responder)
     business_dispatcher = Dispatcher()
+    business_dispatcher.include_router(create_access_review_router(approve, reject))
     business_dispatcher.include_router(
         create_business_router(
-            OnboardApprovedOwner(repository, tenants),
+            OnboardApprovedOwner(repository, tenants, settings.admin_telegram_id),
             UpdateBusinessProfile(tenants),
             SetTenantAIEnabled(tenants),
             GetOwnerDashboard(tenants),

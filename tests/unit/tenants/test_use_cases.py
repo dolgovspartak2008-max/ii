@@ -67,6 +67,22 @@ def test_onboarding_rejects_an_unapproved_owner() -> None:
     asyncio.run(scenario())
 
 
+def test_configured_owner_can_onboard_without_application() -> None:
+    async def scenario() -> None:
+        tenants = FakeTenants()
+        onboarding = OnboardApprovedOwner(
+            FakeAccessApprovals(None),
+            tenants,
+            direct_owner_telegram_id=42,
+        )
+
+        await onboarding.execute(owner_telegram_id=42)
+
+        assert await tenants.get_by_owner(42) is not None
+
+    asyncio.run(scenario())
+
+
 def test_approved_owner_can_update_only_own_business_profile() -> None:
     async def scenario() -> None:
         approved = AccessApplication.submit(telegram_id=42)

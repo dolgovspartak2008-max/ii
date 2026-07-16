@@ -2,8 +2,9 @@
 
 ## Purpose
 
-Make the main Telegram Business bot reliable and comfortable for every approved
-owner. Both `/start` and `/admin` open the same owner panel. The panel makes
+Make the main Telegram Business bot reliable and comfortable for the configured
+platform owner and every approved owner. Both `/start` and `/admin` open the
+same owner panel. The panel makes
 the business profile, AI status and handed-off customer chats visible and
 actionable. A customer must never see the provider's internal uncertainty
 marker.
@@ -11,6 +12,8 @@ marker.
 ## Scope
 
 - Register `/start` and `/admin` in the main bot's Telegram command menu.
+- Deliver each new access application to the configured administrator through
+  the main bot, with approve and reject controls handled by that same bot.
 - Route both commands through one panel-opening helper which clears abandoned
   profile-edit state and reports owner-facing errors instead of failing
   silently.
@@ -28,10 +31,23 @@ marker.
 
 ## Command and Panel Flow
 
-`/start` first verifies access approval and idempotently creates the owner's
-tenant. `/admin` uses the same operation, so it also recovers an owner whose
-tenant is absent. Both commands clear an unfinished FSM edit and render the
-same current dashboard.
+`/start` and `/admin` first authorize the sender and idempotently create the
+sender's tenant. The Telegram ID configured as `ADMIN_TELEGRAM_ID` is the
+platform owner and is authorized directly, without first submitting an access
+application. Every other sender must have an approved access application.
+Both commands clear an unfinished FSM edit and render the same current
+dashboard. This lets the operator manage the primary bot immediately, while
+preserving the application review flow for all other tenants.
+
+## Application Review Flow
+
+The access bot remains the public intake surface: a visitor opens it and
+submits an access application. The notifier sends the new application to
+`ADMIN_TELEGRAM_ID` through the main bot, not the intake bot. The main bot
+registers the typed approve/reject callback handler and uses the existing
+application use cases, which already enforce that only `ADMIN_TELEGRAM_ID` may
+review. The result notification is still sent through the access bot so the
+applicant receives it in the conversation they have already opened.
 
 The dashboard contains these actions:
 
@@ -88,8 +104,15 @@ stores both `active` and `human_handoff` states.
 
 ## Tests and Acceptance Criteria
 
-- `/start` and `/admin` each invoke the same panel path; `/admin` clears stale
-  FSM state.
+- `/start` and `/admin` each invoke the same panel path; the configured
+  platform owner opens it without an access application, while an unapproved
+  non-owner receives the access instruction. `/admin` clears stale FSM state.
+- Dispatcher-level tests feed actual command and callback updates through the
+  business router, proving that Telegram routes both commands and each panel
+  callback to a handler rather than merely rendering button metadata.
+- A new-application notification uses the main bot, its review callback is
+  handled by the main dispatcher, and applicant result notifications use the
+  access bot.
 - The command menu exposes both commands for the main bot.
 - Owner callbacks cannot list or resume another tenant's chat.
 - A handed-off chat becomes active only through the authenticated owner's

@@ -8,10 +8,16 @@ from app.infrastructure.telegram.access_bot.callbacks import AccessReviewCallbac
 
 
 class AiogramAccessNotifier:
-    """Send administrator and applicant notifications through the access bot."""
+    """Send review controls to the main bot and results to the intake bot."""
 
-    def __init__(self, bot: Bot, admin_telegram_id: int) -> None:
-        self._bot = bot
+    def __init__(
+        self,
+        applicant_bot: Bot,
+        review_bot: Bot,
+        admin_telegram_id: int,
+    ) -> None:
+        self._applicant_bot = applicant_bot
+        self._review_bot = review_bot
         self._admin_telegram_id = admin_telegram_id
 
     async def notify_admin(
@@ -41,7 +47,7 @@ class AiogramAccessNotifier:
                 ]
             ]
         )
-        await self._bot.send_message(
+        await self._review_bot.send_message(
             self._admin_telegram_id,
             "Новая заявка на доступ\n"
             f"Пользователь: {user_label}\n"
@@ -64,4 +70,4 @@ class AiogramAccessNotifier:
             raise ValueError(
                 "Only an approved or rejected application can be announced."
             )
-        await self._bot.send_message(application.telegram_id, text)
+        await self._applicant_bot.send_message(application.telegram_id, text)
