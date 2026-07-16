@@ -20,17 +20,21 @@ class PostgresBusinessChatRepository:
     async def upsert_connection(
         self, connection_id: str, tenant_id: UUID, owner_id: int, is_enabled: bool
     ) -> None:
+        statement = insert(BusinessConnectionModel).values(
+            connection_id=connection_id,
+            tenant_id=tenant_id,
+            owner_telegram_id=owner_id,
+            is_enabled=is_enabled,
+        )
         statement = (
-            insert(BusinessConnectionModel)
-            .values(
-                connection_id=connection_id,
-                tenant_id=tenant_id,
-                owner_telegram_id=owner_id,
-                is_enabled=is_enabled,
-            )
+            statement
             .on_conflict_do_update(
-                index_elements=[BusinessConnectionModel.connection_id],
-                set_={"is_enabled": is_enabled, "owner_telegram_id": owner_id},
+                index_elements=[BusinessConnectionModel.tenant_id],
+                set_={
+                    "connection_id": statement.excluded.connection_id,
+                    "is_enabled": statement.excluded.is_enabled,
+                    "owner_telegram_id": statement.excluded.owner_telegram_id,
+                },
             )
         )
         async with self._session_factory() as session, session.begin():

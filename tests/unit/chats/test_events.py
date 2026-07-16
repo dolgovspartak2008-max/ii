@@ -2,8 +2,12 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
+from sqlalchemy.dialects import postgresql
 
 from app.domain.chats.entities import BusinessConnection
+from app.infrastructure.persistence.repositories.chats import (
+    PostgresBusinessChatRepository,
+)
 from app.infrastructure.telegram.business_bot.events import (
     deliver_business_reply,
     is_owner_message,
@@ -31,6 +35,46 @@ class FakeBot:
 
     async def send_message(self, chat_id, text, business_connection_id):
         self.calls.append((chat_id, text, business_connection_id))
+
+
+class CapturingSession:
+    def __init__(self) -> None:
+        self.statement = None
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *args) -> None:
+        return None
+
+    def begin(self):
+        return self
+
+    async def execute(self, statement) -> None:
+        self.statement = statement
+
+
+class CapturingSessionFactory:
+    def __init__(self, session: CapturingSession) -> None:
+        self.session = session
+
+    def __call__(self) -> CapturingSession:
+        return self.session
+
+
+@pytest.mark.asyncio
+async def test_new_connection_replaces_the_tenants_previous_connection() -> None:
+    session = CapturingSession()
+    repository = PostgresBusinessChatRepository(CapturingSessionFactory(session))
+
+    await repository.upsert_connection("new-connection", uuid4(), 42, True)
+
+    assert session.statement is not None
+    sql = " ".join(
+        str(session.statement.compile(dialect=postgresql.dialect())).split()
+    )
+    assert "ON CONFLICT (tenant_id) DO UPDATE" in sql
+    assert "connection_id = excluded.connection_id" in sql
 
 
 @pytest.mark.asyncio
